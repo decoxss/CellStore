@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket | CellStore</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: Arial, sans-serif;
+            color: #202536;
+            background: #f0f2fa;
+            padding: 30px 15px;
+        }
+
+        .ticket {
+            max-width: 420px;
+            margin: 0 auto;
+            padding: 30px 28px;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px #2025361a;
+        }
+
+        .ticket-encabezado { text-align: center; margin-bottom: 20px; }
+        .logo { font-size: 26px; font-weight: bold; }
+        .logo span { color: #4263eb; }
+        .ticket-encabezado p { font-size: 13px; color: #737b8e; margin-top: 6px; }
+
+        .datos {
+            font-size: 13px;
+            line-height: 1.8;
+            padding: 14px 0;
+            border-top: 1px dashed #b3b8c8;
+            border-bottom: 1px dashed #b3b8c8;
+        }
+
+        table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+        th { text-align: left; padding-bottom: 8px; color: #737b8e; font-weight: normal; }
+        th.num, td.num { text-align: right; }
+        td { padding: 6px 0; vertical-align: top; }
+
+        .total {
+            display: flex;
+            justify-content: space-between;
+            padding-top: 14px;
+            border-top: 1px dashed #b3b8c8;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .gracias { text-align: center; font-size: 13px; color: #737b8e; margin-top: 22px; }
+
+        .acciones {
+            max-width: 420px;
+            margin: 18px auto 0;
+            display: flex;
+            gap: 10px;
+        }
+
+        .acciones button, .acciones a {
+            flex: 1;
+            padding: 13px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            text-align: center;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .imprimir { background: #4263eb; color: #ffffff; }
+        .imprimir:hover { background: #304dc7; }
+        .volver { background: #e0e5ff; color: #4263eb; }
+
+        #error { text-align: center; color: #d52c2c; margin-top: 40px; }
+
+        @media print {
+            body { background: #ffffff; padding: 0; }
+            .ticket { box-shadow: none; max-width: 100%; }
+            .acciones { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <p id="error"></p>
+
+    <main class="ticket" id="ticket" hidden>
+        <div class="ticket-encabezado">
+            <div class="logo">CellStore<span>.</span></div>
+            <p>Comprobante de compra</p>
+        </div>
+
+        <div class="datos">
+            <div><strong>Pedido:</strong> #<span id="t-id"></span></div>
+            <div><strong>Fecha:</strong> <span id="t-fecha"></span></div>
+            <div><strong>Cliente:</strong> <span id="t-cliente"></span></div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th class="num">Cant.</th>
+                    <th class="num">Precio</th>
+                    <th class="num">Importe</th>
+                </tr>
+            </thead>
+            <tbody id="t-items"></tbody>
+        </table>
+
+        <div class="total">
+            <span>Total</span>
+            <span id="t-total"></span>
+        </div>
+
+        <p class="gracias">¡Gracias por tu compra!</p>
+    </main>
+
+    <div class="acciones" id="acciones" hidden>
+        <button class="imprimir" onclick="window.print()">Imprimir ticket</button>
+        <a class="volver" href="index.html">Volver a la tienda</a>
+    </div>
+
+    <script>
+    const pesos = n =>
+        '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2 });
+
+    function celda(texto, clase) {
+        const td = document.createElement('td');
+        td.textContent = texto;
+        if (clase) td.className = clase;
+        return td;
+    }
+
+    async function cargarTicket() {
+        const error = document.getElementById('error');
+        const id = new URLSearchParams(location.search).get('id');
+
+        if (!id) {
+            error.textContent = 'Falta el número de pedido.';
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/pedidos/' + encodeURIComponent(id));
+            const pedido = await res.json();
+
+            if (res.status === 401) {
+                location.href = 'login.html';
+                return;
+            }
+            if (!res.ok) {
+                error.textContent = pedido.error;
+                return;
+            }
+
+            document.getElementById('t-id').textContent = pedido.id;
+            document.getElementById('t-fecha').textContent =
+                new Date(pedido.fecha).toLocaleString('es-MX');
+            document.getElementById('t-cliente').textContent = pedido.nombre;
+            document.getElementById('t-total').textContent = pesos(pedido.total) + ' MXN';
+
+            const cuerpo = document.getElementById('t-items');
+            pedido.items.forEach(i => {
+                const tr = document.createElement('tr');
+                tr.append(
+                    celda(i.marca + ' ' + i.modelo),
+                    celda(i.cantidad, 'num'),
+                    celda(pesos(i.precio_unitario), 'num'),
+                    celda(pesos(i.precio_unitario * i.cantidad), 'num')
+                );
+                cuerpo.appendChild(tr);
+            });
+
+            document.getElementById('ticket').hidden = false;
+            document.getElementById('acciones').hidden = false;
+        } catch {
+            error.textContent = 'No se pudo cargar el ticket.';
+        }
+    }
+
+    cargarTicket();
+    </script>
+</body>
+</html>

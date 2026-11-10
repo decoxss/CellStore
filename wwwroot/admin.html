@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel admin | CellStore</title>
+    <link rel="stylesheet" href="estilo.css">
+    <style>
+        .admin { max-width: 1000px; margin: 0 auto; padding: 40px 15px 60px; }
+        .admin h1 { font-size: 28px; margin-bottom: 20px; }
+
+        .tabs { display: flex; gap: 10px; margin-bottom: 22px; }
+        .tab {
+            padding: 11px 20px; border: none; border-radius: 8px;
+            background: #e0e5ff; color: #4263eb; font-size: 14px; cursor: pointer;
+        }
+        .tab.activa { background: #4263eb; color: #fff; }
+
+        .tarjeta {
+            background: #fff; border-radius: 13px; padding: 24px;
+            box-shadow: 0 5px 25px #2025360c; margin-bottom: 22px;
+        }
+        .tarjeta h2 { font-size: 18px; margin-bottom: 16px; }
+
+        .form-celular { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+        .form-celular input, .tabla select {
+            padding: 11px 12px; border: 1px solid #d9dded; border-radius: 8px;
+            background: #fafbff; font-size: 14px; width: 100%;
+        }
+        .form-celular input:focus { outline: none; border-color: #4263eb; }
+        .form-botones { grid-column: 1 / -1; display: flex; gap: 10px; }
+        .secundario { background: #e0e5ff; color: #4263eb; }
+        .secundario:hover { background: #d0d8ff; transform: none; }
+
+        .scroll { overflow-x: auto; }
+        .tabla { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .tabla th { text-align: left; color: #737b8e; font-weight: normal; padding: 10px 8px; }
+        .tabla td { padding: 12px 8px; border-top: 1px solid #e8eaf0; }
+        .acciones-fila { display: flex; gap: 8px; }
+        .editar {
+            background: #e0e5ff; color: #4263eb; border: none;
+            padding: 6px 11px; border-radius: 7px; font-size: 12px; cursor: pointer;
+        }
+
+        #aviso { min-height: 22px; margin-bottom: 14px; font-size: 14px; }
+        #aviso.ok { color: #2b8a3e; }
+        #aviso.error { color: #d52c2c; }
+
+        [hidden] { display: none !important; }
+
+        @media (max-width: 700px) {
+            .form-celular { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header class="encabezado">
+        <a href="index.html" class="logo">CellStore<span>.</span></a>
+        <nav>
+            <a href="dashboard.html">Dashboard</a>
+            <a href="index.html">← Volver a la tienda</a>
+        </nav>
+    </header>
+
+    <main class="admin" id="admin" hidden>
+        <h1>Panel de administración</h1>
+
+        <div class="tabs">
+            <button class="tab activa" data-tab="celulares">Celulares</button>
+            <button class="tab" data-tab="usuarios">Usuarios</button>
+        </div>
+
+        <p id="aviso"></p>
+
+        <!-- ===== Celulares ===== -->
+        <section id="seccion-celulares">
+            <div class="tarjeta">
+                <h2 id="titulo-form">Agregar celular</h2>
+                <form id="form-celular" class="form-celular">
+                    <input id="marca" placeholder="Marca" required>
+                    <input id="modelo" placeholder="Modelo" required>
+                    <input id="precio" type="number" min="0" step="0.01" placeholder="Precio" required>
+                    <input id="stock" type="number" min="0" step="1" placeholder="Stock" required>
+                    <div class="form-botones">
+                        <button type="submit" class="boton" id="guardar">Guardar</button>
+                        <button type="button" class="boton secundario" id="cancelar" hidden>Cancelar edición</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="tarjeta scroll">
+                <table class="tabla">
+                    <thead>
+                        <tr><th>ID</th><th>Marca</th><th>Modelo</th><th>Precio</th><th>Stock</th><th></th></tr>
+                    </thead>
+                    <tbody id="tabla-celulares"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ===== Usuarios ===== -->
+        <section id="seccion-usuarios" hidden>
+            <div class="tarjeta scroll">
+                <table class="tabla">
+                    <thead>
+                        <tr><th>ID</th><th>Nombre</th><th>Correo</th><th>Rol</th><th></th></tr>
+                    </thead>
+                    <tbody id="tabla-usuarios"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+    const aviso = document.getElementById('aviso');
+    let celulares = [];
+    let editandoId = null;
+    let yo = null;
+
+    const pesos = n => '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2 });
+
+    function mostrarAviso(texto, tipo) {
+        aviso.textContent = texto;
+        aviso.className = tipo;
+    }
+
+    async function api(url, metodo, cuerpo) {
+        const res = await fetch(url, {
+            method: metodo || 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            body: cuerpo ? JSON.stringify(cuerpo) : undefined
+        });
+        let data = {};
+        try { data = await res.json(); } catch {}
+        return { ok: res.ok, data };
+    }
+
+    function celda(texto) {
+        const td = document.createElement('td');
+        td.textContent = texto;
+        return td;
+    }
+
+    function boton(texto, clase, alClic) {
+        const b = document.createElement('button');
+        b.textContent = texto;
+        b.className = clase;
+        b.addEventListener('click', alClic);
+        return b;
+    }
+
+    // ===== Celulares =====
+    async function cargarCelulares() {
+        const { ok, data } = await api('/api/celulares');
+        if (!ok) return mostrarAviso('No se pudieron cargar los celulares.', 'error');
+
+        celulares = data.map(c => ({
+            id: Number(c.id), marca: c.marca, modelo: c.modelo,
+            precio: Number(c.precio), stock: Number(c.stock)
+        }));
+
+        const cuerpo = document.getElementById('tabla-celulares');
+        cuerpo.replaceChildren();
+
+        celulares.forEach(c => {
+            const tr = document.createElement('tr');
+            const acciones = document.createElement('td');
+            const caja = document.createElement('div');
+            caja.className = 'acciones-fila';
+            caja.append(
+                boton('Editar', 'editar', () => editarCelular(c.id)),
+                boton('Borrar', 'quitar', () => borrarCelular(c.id))
+            );
+            acciones.append(caja);
+            tr.append(celda(c.id), celda(c.marca), celda(c.modelo),
+                      celda(pesos(c.precio)), celda(c.stock), acciones);
+            cuerpo.append(tr);
+        });
+    }
+
+    function editarCelular(id) {
+        const c = celulares.find(x => x.id === id);
+        if (!c) return;
+        editandoId = id;
+        document.getElementById('marca').value = c.marca;
+        document.getElementById('modelo').value = c.modelo;
+        document.getElementById('precio').value = c.precio;
+        document.getElementById('stock').value = c.stock;
+        document.getElementById('titulo-form').textContent = 'Editar celular #' + id;
+        document.getElementById('cancelar').hidden = false;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function limpiarFormulario() {
+        editandoId = null;
+        document.getElementById('form-celular').reset();
+        document.getElementById('titulo-form').textContent = 'Agregar celular';
+        document.getElementById('cancelar').hidden = true;
+    }
+
+    async function borrarCelular(id) {
+        if (!confirm('¿Borrar este celular?')) return;
+        const { ok, data } = await api('/api/celulares/' + id, 'DELETE');
+        if (!ok) return mostrarAviso(data.error || 'No se pudo borrar (puede tener pedidos).', 'error');
+        mostrarAviso('Celular borrado.', 'ok');
+        cargarCelulares();
+    }
+
+    document.getElementById('form-celular').addEventListener('submit', async e => {
+        e.preventDefault();
+        const cuerpo = {
+            marca: document.getElementById('marca').value.trim(),
+            modelo: document.getElementById('modelo').value.trim(),
+            precio: Number(document.getElementById('precio').value),
+            stock: Number(document.getElementById('stock').value)
+        };
+
+        const { ok, data } = editandoId
+            ? await api('/api/celulares/' + editandoId, 'PUT', cuerpo)
+            : await api('/api/celulares', 'POST', cuerpo);
+
+        if (!ok) return mostrarAviso(data.error || 'No se pudo guardar.', 'error');
+
+        mostrarAviso(editandoId ? 'Celular actualizado.' : 'Celular agregado.', 'ok');
+        limpiarFormulario();
+        cargarCelulares();
+    });
+
+    document.getElementById('cancelar').addEventListener('click', limpiarFormulario);
+
+    // ===== Usuarios =====
+    async function cargarUsuarios() {
+        const { ok, data } = await api('/api/usuarios');
+        if (!ok) return mostrarAviso('No se pudieron cargar los usuarios.', 'error');
+
+        const cuerpo = document.getElementById('tabla-usuarios');
+        cuerpo.replaceChildren();
+
+        data.forEach(u => {
+            const id = Number(u.id);
+            const esYo = id === Number(yo.id);
+            const tr = document.createElement('tr');
+
+            const tdRol = document.createElement('td');
+            const select = document.createElement('select');
+            ['usuario', 'admin'].forEach(r => {
+                const o = document.createElement('option');
+                o.value = r;
+                o.textContent = r;
+                if (u.rol === r) o.selected = true;
+                select.append(o);
+            });
+            select.disabled = esYo;
+            select.addEventListener('change', async () => {
+                const res = await api('/api/usuarios/' + id + '/rol', 'PUT', { rol: select.value });
+                if (!res.ok) mostrarAviso(res.data.error, 'error');
+                else mostrarAviso('Rol actualizado.', 'ok');
+                cargarUsuarios();
+            });
+            tdRol.append(select);
+
+            const tdAcc = document.createElement('td');
+            if (!esYo) {
+                tdAcc.append(boton('Eliminar', 'quitar', async () => {
+                    if (!confirm('¿Eliminar a ' + u.nombre + '?')) return;
+                    const res = await api('/api/usuarios/' + id, 'DELETE');
+                    if (!res.ok) return mostrarAviso(res.data.error, 'error');
+                    mostrarAviso('Usuario eliminado.', 'ok');
+                    cargarUsuarios();
+                }));
+            } else {
+                tdAcc.textContent = '(tú)';
+            }
+
+            tr.append(celda(id), celda(u.nombre), celda(u.email), tdRol, tdAcc);
+            cuerpo.append(tr);
+        });
+    }
+
+    // ===== Pestañas =====
+    document.querySelectorAll('.tab').forEach(t => {
+        t.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(x => x.classList.remove('activa'));
+            t.classList.add('activa');
+            aviso.textContent = '';
+            const usuarios = t.dataset.tab === 'usuarios';
+            document.getElementById('seccion-celulares').hidden = usuarios;
+            document.getElementById('seccion-usuarios').hidden = !usuarios;
+            if (usuarios) cargarUsuarios();
+        });
+    });
+
+    // ===== Inicio: solo entra el admin =====
+    (async () => {
+        const res = await fetch('/api/auth/sesion');
+        if (!res.ok) return (location.href = 'login.html');
+        yo = await res.json();
+        if (yo.rol !== 'admin') return (location.href = 'index.html');
+
+        document.getElementById('admin').hidden = false;
+        cargarCelulares();
+    })();
+    </script>
+</body>
+</html>

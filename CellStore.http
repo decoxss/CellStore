@@ -1,0 +1,6 @@
+@CellStore_HostAddress = http://localhost:5102
+
+GET {{CellStore_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

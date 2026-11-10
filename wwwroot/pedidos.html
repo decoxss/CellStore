@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mis pedidos | CellStore</title>
+    <link rel="stylesheet" href="estilo.css">
+    <style>
+        .mis { max-width: 700px; margin: 0 auto; padding: 40px 15px 60px; }
+        .mis h1 { font-size: 28px; margin-bottom: 20px; }
+        .tarjeta {
+            background: #fff; border-radius: 13px; padding: 10px 24px;
+            box-shadow: 0 5px 25px #2025360c;
+        }
+        .fila {
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 12px; padding: 16px 0; border-top: 1px solid #e8eaf0; font-size: 14px;
+        }
+        .fila:first-child { border-top: none; }
+        .fila small { display: block; color: #737b8e; margin-top: 4px; }
+        .fila a { color: #4263eb; font-weight: bold; }
+        .fila a:hover { text-decoration: underline; }
+        #msg { text-align: center; color: #737b8e; padding: 20px 0; }
+    </style>
+</head>
+<body>
+    <header class="encabezado">
+        <a href="index.html" class="logo">CellStore<span>.</span></a>
+        <nav><a href="index.html">← Volver a la tienda</a></nav>
+    </header>
+
+    <main class="mis">
+        <h1>Mis pedidos</h1>
+        <div class="tarjeta" id="lista"></div>
+        <p id="msg"></p>
+    </main>
+
+    <script>
+    const pesos = n => '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2 });
+
+    (async () => {
+        const msg = document.getElementById('msg');
+        const lista = document.getElementById('lista');
+
+        try {
+            const res = await fetch('/api/pedidos/mios');
+            if (res.status === 401) return (location.href = 'login.html');
+            const pedidos = await res.json();
+            if (!res.ok) throw new Error(pedidos.error);
+
+            if (pedidos.length === 0) {
+                lista.hidden = true;
+                msg.textContent = 'Todavía no has hecho ninguna compra.';
+                return;
+            }
+
+            pedidos.forEach(p => {
+                const fila = document.createElement('div');
+                fila.className = 'fila';
+
+                const info = document.createElement('div');
+                const titulo = document.createElement('strong');
+                titulo.textContent = 'Pedido #' + Number(p.id);
+                const fecha = document.createElement('small');
+                fecha.textContent = new Date(p.fecha).toLocaleString('es-MX');
+                info.append(titulo, fecha);
+
+                const total = document.createElement('strong');
+                total.textContent = pesos(p.total);
+
+                const enlace = document.createElement('a');
+                enlace.href = 'ticket.html?id=' + Number(p.id);
+                enlace.textContent = 'Ver ticket';
+
+                fila.append(info, total, enlace);
+                lista.append(fila);
+            });
+        } catch {
+            msg.textContent = 'No se pudieron cargar tus pedidos.';
+        }
+    })();
+    </script>
+</body>
+</html>

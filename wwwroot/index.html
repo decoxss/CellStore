@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CellStore | Tienda de celulares</title>
+    <link rel="stylesheet" href="estilo.css">
+    <script src="app.js" defer></script>
+</head>
+<body>
+    <header class="encabezado">
+        <a href="#" class="logo">CellStore<span>.</span></a>
+
+        <nav>
+            <a href="#inicio">Inicio</a>
+            <a href="#catalogo">Celulares</a>
+            <a href="#" id="abrir-carrito">Mi carrito (<span id="cantidad-carrito">0</span>)</a>
+            <div id="menu-sesion" class="menu-sesion"></div>
+        </nav>
+    </header>
+
+    <section class="portada" id="inicio">
+        <div class="portada-texto">
+            <p class="etiqueta">TECNOLOGÍA PARA TODOS</p>
+            <h1>Encuentra tu próximo celular</h1>
+            <p>Descubre los mejores modelos y encuentra el smartphone ideal para ti.</p>
+            <a href="#catalogo" class="boton">Ver catálogo</a>
+        </div>
+
+        <div class="portada-imagen">
+            <div class="circulo">
+                <img src="img/inicio.png" alt="Celular de cellstore" class="celular-portada">
+            </div>
+        </div>
+    </section>
+
+    <main>
+        <section class="catalogo" id="catalogo">
+            <div class="titulo-seccion">
+                <p class="etiqueta">NUESTRO CATÁLOGO</p>
+                <h2>Celulares disponibles</h2>
+                <p>Precios y existencias consultados desde nuestra base de datos.</p>
+            </div>
+
+            <p id="estado">Cargando celulares...</p>
+            <div id="productos" class="productos"></div>
+        </section>
+    </main>
+
+    <div id="fondo-carrito" class="fondo-carrito"></div>
+
+    <aside id="panel-carrito" class="panel-carrito">
+        <div class="panel-encabezado">
+            <h2>Mi carrito</h2>
+            <button id="cerrar-carrito" class="cerrar" aria-label="Cerrar">✕</button>
+        </div>
+
+        <div id="lista-carrito" class="panel-lista"></div>
+
+        <div class="panel-pie">
+            <div class="panel-total">
+                <span>Total</span>
+                <strong id="total">$0.00 MXN</strong>
+            </div>
+            <button id="confirmar" class="boton">Confirmar compra</button>
+            <button id="vaciar" class="vaciar">Vaciar carrito</button>
+            <p id="mensaje-carrito"></p>
+        </div>
+    </aside>
+
+    <footer>
+        <a href="#" class="logo">CellStore<span>.</span></a>
+        <p>Tu próximo celular está aquí.</p>
+        <p>© 2026 CellStore. Todos los derechos reservados.</p>
+    </footer>
+</body>
+</html>

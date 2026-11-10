@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | CellStore</title>
+    <link rel="stylesheet" href="estilo.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        .dash { max-width: 1100px; margin: 0 auto; padding: 40px 15px 60px; }
+        .dash h1 { font-size: 28px; margin-bottom: 24px; }
+
+        .resumen-tarjetas {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 18px;
+            margin-bottom: 22px;
+        }
+        .dato {
+            background: #fff; border-radius: 13px; padding: 22px;
+            box-shadow: 0 5px 25px #2025360c;
+        }
+        .dato span { display: block; font-size: 13px; color: #737b8e; margin-bottom: 10px; }
+        .dato strong { font-size: 26px; }
+        .dato.alerta strong { color: #d52c2c; }
+
+        .graficas { display: grid; grid-template-columns: 3fr 2fr; gap: 18px; margin-bottom: 22px; }
+        .tarjeta {
+            background: #fff; border-radius: 13px; padding: 24px;
+            box-shadow: 0 5px 25px #2025360c;
+        }
+        .tarjeta h2 { font-size: 17px; margin-bottom: 16px; }
+        .caja-grafica { position: relative; height: 300px; }
+
+        .lista-bajo { list-style: none; font-size: 14px; }
+        .lista-bajo li {
+            display: flex; justify-content: space-between;
+            padding: 10px 0; border-top: 1px solid #e8eaf0;
+        }
+        .lista-bajo li:first-child { border-top: none; }
+        .vacio { color: #737b8e; font-size: 14px; }
+
+        [hidden] { display: none !important; }
+        #error { text-align: center; color: #d52c2c; margin-bottom: 15px; }
+
+        @media (max-width: 800px) {
+            .resumen-tarjetas { grid-template-columns: 1fr 1fr; }
+            .graficas { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header class="encabezado">
+        <a href="index.html" class="logo">CellStore<span>.</span></a>
+        <nav>
+            <a href="admin.html">Panel admin</a>
+            <a href="index.html">← Volver a la tienda</a>
+        </nav>
+    </header>
+
+    <main class="dash" id="dash" hidden>
+        <h1>Dashboard de estadísticas</h1>
+        <p id="error"></p>
+
+        <section class="resumen-tarjetas">
+            <div class="dato"><span>Ventas totales</span><strong id="d-ventas">-</strong></div>
+            <div class="dato"><span>Pedidos</span><strong id="d-pedidos">-</strong></div>
+            <div class="dato"><span>Usuarios registrados</span><strong id="d-usuarios">-</strong></div>
+            <div class="dato alerta"><span>Celulares con stock bajo</span><strong id="d-bajo">-</strong></div>
+        </section>
+
+        <section class="graficas">
+            <div class="tarjeta">
+                <h2>Ventas de los últimos 30 días</h2>
+                <div class="caja-grafica"><canvas id="g-ventas"></canvas></div>
+            </div>
+            <div class="tarjeta">
+                <h2>Celulares más vendidos</h2>
+                <div class="caja-grafica"><canvas id="g-vendidos"></canvas></div>
+                <p class="vacio" id="sin-ventas" hidden>Aún no hay ventas.</p>
+            </div>
+        </section>
+
+        <section class="tarjeta">
+            <h2>Stock bajo (3 piezas o menos)</h2>
+            <ul class="lista-bajo" id="lista-bajo"></ul>
+        </section>
+    </main>
+
+    <script>
+    const pesos = n => '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2 });
+
+    // arma los últimos 30 días y rellena con 0 los días sin ventas
+    function ultimos30(ventas) {
+        const mapa = new Map(ventas.map(v => [v.dia, v.total]));
+        const dias = [];
+        const hoy = new Date();
+        for (let i = 29; i >= 0; i--) {
+            const d = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - i);
+            const clave = d.getFullYear() + '-' +
+                String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                String(d.getDate()).padStart(2, '0');
+            dias.push({
+                etiqueta: d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }),
+                total: mapa.get(clave) || 0
+            });
+        }
+        return dias;
+    }
+
+    function pintar(datos) {
+        const r = datos.resumen;
+        document.getElementById('d-ventas').textContent = pesos(r.ventas);
+        document.getElementById('d-pedidos').textContent = r.pedidos;
+        document.getElementById('d-usuarios').textContent = r.usuarios;
+        document.getElementById('d-bajo').textContent = r.stockBajo;
+
+        const dias = ultimos30(datos.ventasPorDia);
+        new Chart(document.getElementById('g-ventas'), {
+            type: 'line',
+            data: {
+                labels: dias.map(d => d.etiqueta),
+                datasets: [{
+                    label: 'Ventas (MXN)',
+                    data: dias.map(d => d.total),
+                    borderColor: '#4263eb',
+                    backgroundColor: '#4263eb22',
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+
+        if (datos.masVendidos.length === 0) {
+            document.getElementById('sin-ventas').hidden = false;
+        } else {
+            new Chart(document.getElementById('g-vendidos'), {
+                type: 'bar',
+                data: {
+                    labels: datos.masVendidos.map(m => m.nombre),
+                    datasets: [{
+                        label: 'Unidades vendidas',
+                        data: datos.masVendidos.map(m => m.unidades),
+                        backgroundColor: '#4263eb'
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+        }
+
+        const lista = document.getElementById('lista-bajo');
+        if (datos.stockBajo.length === 0) {
+            const li = document.createElement('li');
+            li.className = 'vacio';
+            li.textContent = 'Todo el inventario tiene buen stock.';
+            lista.append(li);
+        }
+        datos.stockBajo.forEach(c => {
+            const li = document.createElement('li');
+            const nombre = document.createElement('span');
+            const stock = document.createElement('strong');
+            nombre.textContent = c.nombre;
+            stock.textContent = c.stock + (c.stock === 1 ? ' pieza' : ' piezas');
+            li.append(nombre, stock);
+            lista.append(li);
+        });
+    }
+
+    (async () => {
+        const sesion = await fetch('/api/auth/sesion');
+        if (!sesion.ok) return (location.href = 'login.html');
+        const yo = await sesion.json();
+        if (yo.rol !== 'admin') return (location.href = 'index.html');
+
+        document.getElementById('dash').hidden = false;
+
+        try {
+            const res = await fetch('/api/estadisticas');
+            const datos = await res.json();
+            if (!res.ok) throw new Error(datos.error);
+            pintar(datos);
+        } catch (e) {
+            document.getElementById('error').textContent =
+                'No se pudieron cargar las estadísticas.';
+            console.error(e);
+        }
+    })();
+    </script>
+</body>
+</html>
